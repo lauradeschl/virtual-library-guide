@@ -1,7 +1,7 @@
 # Project log: Digital Bookshelf
 
 **Live:** https://digital-bookshelf-ten.vercel.app
-**Built:** Saturday 24 October 2026, one working day (about 10:00–18:30), Laura + Claude Code.
+**Built:** Saturday 24 October 2026, one afternoon (15:30–18:15, under three hours), Laura + Claude Code.
 
 ## What we built
 
