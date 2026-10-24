@@ -1,0 +1,27 @@
+/* Design tokens: the "Index" layout from the Magic Patterns design, recolored
+   as a cozy reading room: warm neutral paper, oxblood accent, walnut shelf.
+   Components only reference these tokens, so a new direction means swapping
+   this file. Spine colors live in lib/appearance.ts. */
+
+:root {
+  --bg: #f2efea;
+  --panel: #faf8f5;
+  --ink: #2a231e;
+  --muted: #6f665d;
+  --rule: #ddd6cc;
+  --accent: #8c2f23;
+  --accent-ink: #faf8f5;
+  --plank: #7a4e2d;
+  --plank-light: #9a6a42;
+  --plank-dark: #5a3720;
+  --glow: rgba(255, 205, 150, 0.16);
+  --scrim: rgba(42, 35, 30, 0.28);
+
+  --font-display-family: 'Archivo', sans-serif;
+  --font-ui-family: 'Archivo', sans-serif;
+  --font-meta-family: 'Archivo', sans-serif;
+
+  --tooltip-radius: 6px;
+  --panel-radius: 10px;
+  --field-radius: 6px;
+}
