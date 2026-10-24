@@ -41,6 +41,13 @@ const TIMEOUT_MS = 12_000
 
 // Supabase/Postgres errors → something a visitor can act on.
 function friendlySaveError(error: { code?: string; message?: string }): string {
+  const message = error.message ?? ''
+  if (message.includes('genre_check')) {
+    return 'The shelf doesn’t accept this genre yet. Pick another genre, or try again later.'
+  }
+  if (message.includes('cover_from_known_source')) {
+    return 'This cover comes from a source we can’t credit. Pick another result.'
+  }
   if (error.code === '23514' || error.code === '42501') {
     return 'The shelf didn’t accept this entry. Check your name and note, then try again.'
   }
