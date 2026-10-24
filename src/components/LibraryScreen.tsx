@@ -13,6 +13,7 @@ import { useLibrary } from '../hooks/useLibrary'
 import { toBook, withCoverPalette } from '../lib/appearance'
 import { preloadCovers } from '../lib/preloadCovers'
 import { callNumber } from '../lib/spine'
+import type { CoverPalette } from '../lib/coverPalette'
 import type { Book, NewFavorite } from '../types/book'
 
 // Mock books fill the shelf until the real starter list exists.
@@ -46,8 +47,8 @@ export function LibraryScreen() {
   }, [books, coverCap])
 
   // Let the new book drop onto the shelf first, then open it.
-  const handleAdd = async (input: NewFavorite) => {
-    const book = await favorites.addFavorite(input)
+  const handleAdd = async (input: NewFavorite, palette: CoverPalette | null) => {
+    const book = await favorites.addFavorite(input, palette)
     setAdding(false)
     library.clearFilters()
     setTimeout(() => library.setSelectedId(book.id), 900)

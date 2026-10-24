@@ -5,6 +5,7 @@ import { SpineFace } from './SpineFace'
 import { bookGenres } from '../data/genres'
 import { toBook, withCoverPalette } from '../lib/appearance'
 import { useCoverPalettes } from '../hooks/useCoverPalettes'
+import { getCoverPalette, type CoverPalette } from '../lib/coverPalette'
 import { easeOut } from '../lib/motion'
 import type { BookSearchResult } from '../lib/bookSearch'
 import { searchOpenLibrary } from '../lib/openLibrary'
@@ -13,7 +14,7 @@ import type { Book, Genre, NewFavorite } from '../types/book'
 interface AddBookDialogProps {
   shared: boolean // false when Supabase isn't configured: the book only lasts this visit
   onClose: () => void
-  onAdd: (input: NewFavorite) => Promise<unknown>
+  onAdd: (input: NewFavorite, palette: CoverPalette | null) => Promise<unknown>
   findOnShelf: (candidate: { key: string; title: string; author: string }) => Book | undefined
   onOpenExisting: (id: string) => void
 }
@@ -151,7 +152,12 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
     setSubmitError(null)
     setSubmitting(true)
     try {
-      await onAdd(draft)
+      // Save the cover's spine colors with the book so everyone sees them at
+      // once. Usually ready from the preview; wait briefly if not.
+      const palette =
+        previewPalette ??
+        (await Promise.race([getCoverPalette(draft.cover), new Promise<null>((r) => setTimeout(() => r(null), 2500))]))
+      await onAdd(draft, palette)
     } catch (err) {
       setSubmitError((err as Error).message || 'Couldn’t place the book. Try again.')
       setSubmitting(false)

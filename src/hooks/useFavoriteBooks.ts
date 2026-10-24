@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { seedCoverPalettes, type CoverPalette } from '../lib/coverPalette'
 import { isAllowedCover, toHttps, type CoverSource } from '../lib/covers'
 import { supabase } from '../lib/supabase'
 import type { BookRecord, Genre, NewFavorite } from '../types/book'
@@ -18,6 +19,11 @@ type Row = {
   publisher: string
   recommender: string
   note: string
+  // Spine colors sampled from the cover by the visitor who added the book
+  // (migration 0005); null for older rows.
+  spine_color?: string | null
+  band_color?: string | null
+  ink_color?: string | null
 }
 
 const toRecord = (r: Row): BookRecord => ({
@@ -74,11 +80,26 @@ export function useFavoriteBooks() {
         if (error) {
           console.error('Loading visitor books failed:', error)
           setError('Visitors’ books couldn’t be loaded right now.')
-        } else setBooks((data as Row[]).map(toRecord))
+        } else {
+          // Saved colors go into the palette cache first, so the spines render
+          // in their final colors instead of switching once covers load.
+          const rows = data as Row[]
+          seedCoverPalettes(
+            Object.fromEntries(
+              rows
+                .filter((r) => r.cover && r.spine_color && r.ink_color)
+                .map((r) => [
+                  r.cover,
+                  { spine: r.spine_color!, band: r.band_color ?? r.spine_color!, ink: r.ink_color! },
+                ]),
+            ),
+          )
+          setBooks(rows.map(toRecord))
+        }
       })
   }, [])
 
-  const addFavorite = useCallback(async (input: NewFavorite) => {
+  const addFavorite = useCallback(async (input: NewFavorite, palette?: CoverPalette | null) => {
     const cover = toHttps(input.cover)
     if (!isAllowedCover(cover, input.coverSource, input.coverPageUrl)) {
       throw new Error('This cover comes from a source we can’t credit. Pick another result.')
@@ -87,25 +108,27 @@ export function useFavoriteBooks() {
 
     let book: BookRecord
     if (supabase) {
-      const { data, error } = await supabase
-        .from('favorite_books')
-        .insert({
-          title: clean.title,
-          author: clean.author,
-          genre: clean.genre,
-          year: clean.year,
-          cover: clean.cover,
-          cover_source: clean.coverSource,
-          cover_page_url: clean.coverPageUrl,
-          open_library_key: clean.openLibraryKey,
-          pages: clean.pages,
-          publisher: clean.publisher,
-          recommender: clean.recommender,
-          note: clean.note,
-        })
-        .select()
-        .abortSignal(AbortSignal.timeout(TIMEOUT_MS))
-        .single()
+      const row = {
+        title: clean.title,
+        author: clean.author,
+        genre: clean.genre,
+        year: clean.year,
+        cover: clean.cover,
+        cover_source: clean.coverSource,
+        cover_page_url: clean.coverPageUrl,
+        open_library_key: clean.openLibraryKey,
+        pages: clean.pages,
+        publisher: clean.publisher,
+        recommender: clean.recommender,
+        note: clean.note,
+      }
+      const colors =
+        palette && clean.cover ? { spine_color: palette.spine, band_color: palette.band, ink_color: palette.ink } : {}
+      const insert = (values: object) =>
+        supabase!.from('favorite_books').insert(values).select().abortSignal(AbortSignal.timeout(TIMEOUT_MS)).single()
+      let { data, error } = await insert({ ...row, ...colors })
+      // Color columns missing (migration 0005 not run yet): save without them.
+      if (error?.code === 'PGRST204' && Object.keys(colors).length) ({ data, error } = await insert(row))
       if (error) {
         console.error('Saving visitor book failed:', error)
         throw new Error(friendlySaveError(error))
@@ -115,6 +138,7 @@ export function useFavoriteBooks() {
       book = { ...clean, id: `local-${Date.now().toString(36)}`, addedAt: new Date().toISOString() }
     }
 
+    if (palette && clean.cover) seedCoverPalettes({ [clean.cover]: palette })
     setBooks((prev) => [book, ...prev])
     setJustAdded(book.id)
     setTimeout(() => setJustAdded(null), 1400)
