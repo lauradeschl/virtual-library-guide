@@ -27,3 +27,6 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Vercel CLI link (project id, local env pulled by `vercel`)
+.vercel
