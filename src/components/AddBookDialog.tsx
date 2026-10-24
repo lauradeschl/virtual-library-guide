@@ -3,9 +3,11 @@ import { motion } from 'framer-motion'
 import { ChevronDownIcon, SearchIcon, XIcon } from 'lucide-react'
 import { SpineFace } from './SpineFace'
 import { bookGenres } from '../data/genres'
-import { toBook } from '../lib/appearance'
+import { toBook, withCoverPalette } from '../lib/appearance'
+import { useCoverPalettes } from '../hooks/useCoverPalettes'
 import { easeOut } from '../lib/motion'
-import { searchBooks, type OpenLibraryResult } from '../lib/openLibrary'
+import type { BookSearchResult } from '../lib/bookSearch'
+import { searchOpenLibrary } from '../lib/openLibrary'
 import type { Book, Genre, NewFavorite } from '../types/book'
 
 interface AddBookDialogProps {
@@ -16,7 +18,12 @@ interface AddBookDialogProps {
   onOpenExisting: (id: string) => void
 }
 
-type SearchOutcome = { q: string; attempt: number; results: OpenLibraryResult[]; error: string | null }
+// Results for one query: undefined = still searching, 'failed' = gave up.
+type SourceResults = BookSearchResult[] | 'failed' | undefined
+type SearchOutcome = { q: string; attempt: number; openLibrary?: SourceResults }
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const list = (r: SourceResults) => (Array.isArray(r) ? r : [])
 
 const NAME_MAX = 60
 const NOTE_MAX = 500
@@ -27,7 +34,7 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
   const [outcome, setOutcome] = useState<SearchOutcome | null>(null)
   const [slow, setSlow] = useState(false)
   const [attempt, setAttempt] = useState(0) // bumped by "Try again"
-  const [picked, setPicked] = useState<OpenLibraryResult | null>(null)
+  const [picked, setPicked] = useState<BookSearchResult | null>(null)
   const [genre, setGenre] = useState<Genre>('Fiction')
   const [name, setName] = useState('')
   const [note, setNote] = useState('')
@@ -48,24 +55,38 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
   const q = query.trim()
   const searchActive = !picked && q.length >= 2
   const current = outcome?.q === q && outcome.attempt === attempt ? outcome : null
-  const searching = searchActive && !current
+  const openLibrary = current?.openLibrary
+  const results = list(openLibrary)
+  const searching = searchActive && openLibrary === undefined
+  const failed = searchActive && openLibrary === 'failed'
+  const empty = searchActive && Array.isArray(openLibrary) && results.length === 0
 
   useEffect(() => {
     if (!searchActive) return
     const controller = new AbortController()
-    const run = async () => {
+    const record = (patch: Partial<SearchOutcome>) =>
+      setOutcome((prev) =>
+        prev && prev.q === q && prev.attempt === attempt ? { ...prev, ...patch } : { q, attempt, ...patch },
+      )
+    const withRetry = async (
+      search: (signal: AbortSignal) => Promise<BookSearchResult[]>,
+      maxTries: number,
+    ): Promise<SourceResults> => {
       for (let tries = 1; ; tries++) {
         try {
-          return { q, attempt, results: await searchBooks(q, controller.signal), error: null }
+          return await search(controller.signal)
         } catch (e) {
           if (controller.signal.aborted) throw e
-          if (tries >= 2) return { q, attempt, results: [], error: 'Open Library isn’t responding right now.' }
-          await new Promise((r) => setTimeout(r, 800))
+          if (tries >= maxTries) return 'failed'
+          await sleep(400 * tries)
         }
       }
     }
     const debounce = setTimeout(() => {
-      run().then(setOutcome, () => {})
+      withRetry((signal) => searchOpenLibrary(q, signal), 2).then(
+        (r) => record({ openLibrary: r }),
+        () => {},
+      )
     }, 280)
     const slowTimer = setTimeout(() => setSlow(true), 280 + 4000)
     return () => {
@@ -77,7 +98,8 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
   }, [q, attempt, searchActive])
 
   // Already on the shelf (same work, or same title + author)? Then we offer to open it instead.
-  const existing = picked ? findOnShelf(picked) : undefined
+  const shelfMatch = (r: BookSearchResult) => findOnShelf({ key: r.openLibraryKey, title: r.title, author: r.author })
+  const existing = picked ? shelfMatch(picked) : undefined
 
   const draft: NewFavorite | null = picked && {
     title: picked.title,
@@ -85,20 +107,21 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
     genre,
     year: picked.year,
     cover: picked.cover,
-    coverSource: 'openlibrary',
+    coverSource: picked.source,
     coverPageUrl: picked.pageUrl,
-    openLibraryKey: picked.key,
+    openLibraryKey: picked.openLibraryKey,
     pages: picked.pages,
     publisher: picked.publisher,
     recommender: name,
     note,
   }
 
-  // Spine preview uses the same derived look the shelf will use.
-  const preview = useMemo(
+  // Spine preview uses the same look the shelf will use, cover colors included.
+  const [previewPalette] = Object.values(useCoverPalettes(picked ? [picked.cover] : []))
+  const previewBase = useMemo(
     () =>
       toBook({
-        id: picked?.key ?? 'preview',
+        id: picked?.id ?? 'preview',
         title: picked?.title ?? 'Your book',
         author: picked?.author ?? '',
         genre,
@@ -106,7 +129,7 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
         cover: '',
         coverSource: '',
         coverPageUrl: '',
-        openLibraryKey: picked?.key ?? '',
+        openLibraryKey: picked?.openLibraryKey ?? '',
         pages: picked?.pages ?? 0,
         publisher: '',
         recommender: '',
@@ -115,6 +138,7 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
       }),
     [picked, genre],
   )
+  const preview = withCoverPalette(previewBase, previewPalette)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -135,12 +159,12 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
   }
 
   const fieldClass =
-    'mt-1.5 w-full rounded-[var(--field-radius)] border border-rule bg-canvas px-3 py-2 text-sm text-ink outline-none transition-colors duration-150 placeholder:text-muted focus:border-ink'
+    'mt-1.5 w-full rounded-[var(--field-radius)] border border-rule bg-canvas px-3 py-2.5 text-base text-ink outline-none sm:py-2 sm:text-sm transition-colors duration-150 placeholder:text-muted focus:border-ink'
   const labelClass = 'text-xs font-medium text-muted'
   const errorClass = 'mt-1 block text-xs text-[#B42318]'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4">
       <motion.div
         className="absolute inset-0 bg-scrim"
         initial={{ opacity: 0 }}
@@ -159,8 +183,7 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 8 }}
         transition={{ duration: 0.22, ease: easeOut }}
-        className="relative grid max-h-[90vh] w-full max-w-2xl overflow-y-auto border border-rule bg-panel text-ink md:grid-cols-[200px_1fr]"
-        style={{ borderRadius: 'var(--panel-radius)' }}
+        className="relative grid h-[100dvh] w-full max-w-2xl overflow-y-auto bg-panel text-ink sm:h-auto sm:max-h-[90vh] sm:rounded-[var(--panel-radius)] sm:border sm:border-rule md:grid-cols-[200px_1fr]"
       >
         <div className="hidden flex-col items-center justify-end border-r border-rule bg-canvas px-6 pb-8 pt-10 md:flex">
           <SpineFace
@@ -171,22 +194,22 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
             width={44}
             height={250}
             type={preview.type}
-            band={preview.band}
+            font={preview.font}
           />
           <div className="shelf-plank mt-0 h-2.5 w-full" />
           <p className="mt-4 text-center text-xs text-muted">Preview on the shelf</p>
         </div>
 
-        <form onSubmit={handleSubmit} noValidate className="min-w-0 p-6 md:p-7">
+        <form onSubmit={handleSubmit} noValidate className="flex min-w-0 flex-col p-6 md:p-7">
           <div className="flex items-start justify-between">
-            <h2 id="add-book-title" className="font-display text-3xl leading-none">
+            <h2 id="add-book-title" className="font-display text-2xl leading-tight sm:text-3xl sm:leading-none">
               Add your favorite book
             </h2>
             <button
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="-mr-2 -mt-1 flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-150 hover:bg-canvas hover:text-ink"
+              className="-mr-2 -mt-1 flex h-11 w-11 flex-none items-center sm:h-9 sm:w-9 justify-center rounded-full text-muted transition-colors duration-150 hover:bg-canvas hover:text-ink"
             >
               <XIcon className="h-4 w-4" />
             </button>
@@ -218,9 +241,9 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
                     Searching…{slow && ' Open Library is slow right now, hang on.'}
                   </p>
                 )}
-                {current?.error && (
+                {failed && (
                   <p className={errorClass}>
-                    {current.error}{' '}
+                    Open Library isn’t responding right now.{' '}
                     <button
                       type="button"
                       onClick={() => setAttempt((n) => n + 1)}
@@ -230,17 +253,15 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
                     </button>
                   </p>
                 )}
-                {current && !current.error && current.results.length === 0 && (
-                  <p className="py-3 text-sm text-muted">No books with a cover found. Try another spelling.</p>
-                )}
-                {searchActive && current && current.results.length > 0 && (
-                  <ul className="max-h-[320px] divide-y divide-rule overflow-y-auto border-y border-rule">
-                    {current.results.map((r) => (
-                      <li key={r.key}>
+                {empty && <p className="py-3 text-sm text-muted">No books with a cover found. Try another spelling.</p>}
+                {searchActive && results.length > 0 && (
+                  <ul className="divide-y sm:max-h-[320px] divide-rule overflow-y-auto border-y border-rule">
+                    {results.map((r) => (
+                      <li key={r.id}>
                         <button
                           type="button"
                           onClick={() => setPicked(r)}
-                          className="flex w-full items-center gap-3 px-1 py-2 text-left transition-colors duration-150 hover:bg-canvas"
+                          className="flex w-full items-center gap-3 px-1 py-3 text-left sm:py-2 transition-colors duration-150 hover:bg-canvas"
                         >
                           <img
                             src={r.cover.replace('-L.jpg', '-S.jpg')}
@@ -255,7 +276,7 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
                               {r.year > 0 && ` · ${r.year}`}
                             </span>
                           </span>
-                          <span className="text-xs text-muted">{findOnShelf(r) ? 'On the shelf' : 'Pick'}</span>
+                          <span className="text-xs text-muted">{shelfMatch(r) ? 'On the shelf' : 'Pick'}</span>
                         </button>
                       </li>
                     ))}
@@ -318,14 +339,13 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
                       </span>
                     </label>
                     <label className="block">
-                      <span className={labelClass}>Your name</span>
+                      <span className={labelClass}>First name</span>
                       <input
                         autoFocus
                         value={name}
                         maxLength={NAME_MAX}
                         onChange={(e) => setName(e.target.value)}
                         className={fieldClass}
-                        placeholder="First name or nickname"
                         aria-invalid={!!nameError}
                       />
                     </label>
@@ -362,11 +382,11 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
             </div>
           )}
 
-          <div className="mt-6 flex justify-end gap-2">
+          <div className="sticky bottom-0 -mx-6 mt-auto flex justify-end gap-2 border-t border-rule bg-panel px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:mx-0 sm:mt-6 sm:border-0 sm:bg-transparent sm:p-0">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-[var(--field-radius)] px-4 py-2 text-sm text-muted transition-colors duration-150 hover:text-ink"
+              className="rounded-[var(--field-radius)] px-4 py-3 text-sm sm:py-2 text-muted transition-colors duration-150 hover:text-ink"
             >
               Cancel
             </button>
@@ -374,7 +394,7 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
               <button
                 type="button"
                 onClick={() => onOpenExisting(existing.id)}
-                className="rounded-[var(--field-radius)] bg-ink px-4 py-2 text-sm font-medium text-canvas transition-colors duration-150 hover:bg-ink/85"
+                className="rounded-[var(--field-radius)] bg-ink px-4 py-3 text-sm sm:py-2 font-medium text-canvas transition-colors duration-150 hover:bg-ink/85"
               >
                 Open it
               </button>
@@ -382,7 +402,7 @@ export function AddBookDialog({ shared, onClose, onAdd, findOnShelf, onOpenExist
               <button
                 type="submit"
                 disabled={!picked || submitting}
-                className="rounded-[var(--field-radius)] bg-ink px-4 py-2 text-sm font-medium text-canvas transition-colors duration-150 hover:bg-ink/85 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-[var(--field-radius)] bg-ink px-4 py-3 text-sm sm:py-2 font-medium text-canvas transition-colors duration-150 hover:bg-ink/85 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {submitting ? 'Placing…' : 'Place on shelf'}
               </button>

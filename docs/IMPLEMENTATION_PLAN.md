@@ -21,7 +21,7 @@ The original build guide ([virtual_library_build_guide.md](../virtual_library_bu
 1. Supabase: visitor books saved and shared.
 2. Mobile optimization.
 3. Spine colors matched to each book's cover.
-4. Google Books API as a second source for search and covers.
+4. ~~Google Books API as a second source~~: tried and dropped.
 
 **Not this round**
 - Amazon affiliate program (decided 2026-10-24; would make the site commercial: Impressum, ad labeling, affiliate links).
@@ -70,7 +70,9 @@ Code is ready (`hooks/useFavoriteBooks.ts`, `lib/supabase.ts`, the SQL). What's 
 
 **Done when:** a book added on one device shows up on another, and the SQL rejects every bad insert above.
 
-### Phase B: Mobile optimization
+### Phase B: Mobile optimization ✅ (real-device check pending)
+
+**Status 2026-10-24:** phones (<640px) get: tagline above the heading and a swipeable row of genre pills, so heading, button, pills and the whole shelf fit on the first screen (390×844); hover cards only for a mouse (no stuck tooltip after a tap); a right-edge fade and "Swipe to browse" when the shelf overflows; the detail panel as a bottom sheet (drag handle, swipe down to close, page behind doesn't scroll, smaller cover, the note right after the title); the add-book window full screen with 16px inputs (no iOS zoom) and buttons pinned to the bottom; all touch targets ≥44px; cover preloading capped at 24 (12 with data saver). Verified in Chrome's iPhone emulation incl. swipe-to-close; desktop and tablet unchanged. Still to do: try it on a real iPhone/Android via `npm run dev -- --host`.
 
 Current state: the layout stacks, spines scale to 76% on phones, but hover-only details and the side panel aren't built for touch.
 
@@ -84,7 +86,9 @@ Current state: the layout stacks, spines scale to 76% on phones, but hover-only 
 
 **Done when:** on a phone you can browse, open and step through books, and add one, all one-handed with no layout breaks.
 
-### Phase C: Spine colors from the cover
+### Phase C: Spine colors from the cover ✅ (except Vom Mut)
+
+**Status 2026-10-24:** `lib/coverPalette.ts` samples spine (left edge, coarse colour groups so textures count as one), band (most vivid mid-tone) and ink (best contrast) from each cover, toned toward the cozy palette; cached in `localStorage` (`coverPalette:v2`). Covers load once in CORS mode, shared by preloading, sampling and the detail panel. Starter palettes are baked into `starterCovers.ts`, so first visits show the right colours immediately. Starter spines also use a font matching each cover's title lettering (`SpineFont`). Waiting on a screenshot of *Vom Mut, frei zu sein* to set its colours and font by hand (not on Open Library or Google Books).
 
 Today spines get a cloth color from a fixed palette by hash, so The Midnight Library's spine is teal while its cover is navy. Instead:
 
@@ -100,7 +104,9 @@ Today spines get a cloth color from a fixed palette by hash, so The Midnight Lib
 
 **Done when:** each starter book's spine is recognisably the color of its cover, with readable lettering, and reloading shows the right colors immediately.
 
-### Phase D: Google Books API
+### Phase D: Google Books API ❌ dropped (2026-10-24)
+
+**Decision 2026-10-24: dropped after a trial.** Results were mostly secondary literature (study guides, academic books about the title), its covers are small (128px) and can't be colour-sampled (no CORS), the API answered 503 most of the time, and it didn't have *Vom Mut* either. The trial below is kept for reference. `lib/googleBooks.ts` + `lib/bookSearch.ts`: the add-book search queries Open Library and Google Books in parallel, shows whichever answers first, merges (Open Library first; duplicates by ISBN or title + author dropped) and labels Google results. Google covers are credited "Cover via Google Books ↗" and accepted by the database. Google currently answers 503 most of the time (7 of 8 calls), so it gets up to 4 quick tries; if it still fails, Open Library results show alone. Google covers can't be colour-sampled (no CORS) and are small (128px), so their spines keep palette colours. *Vom Mut, frei zu sein* isn't on Google Books either. To check: the key's website restriction (a request from another site still succeeded right after setup).
 
 Open Library is often slow (5–10 s searches) and misses newer or German titles (*Vom Mut, frei zu sein* has no entry). Google Books fills both gaps.
 
@@ -141,7 +147,7 @@ Supabase table `favorite_books`:
 | `recommender` | required, 1–60 chars |
 | `title` | required, 1–300 chars |
 | `author` | ≤ 200 chars |
-| `genre` | one of Fiction, Nonfiction, Sci-Fi, Mystery & Thriller, Fantasy, Romance |
+| `genre` | one of Fiction, Self-help, Business, Sci-Fi, Mystery & Thriller, Fantasy, Romance |
 | `note` | required, 1–500 chars |
 | `cover`, `cover_source`, `cover_page_url` | all empty, or image + credit page from the same known source |
 
@@ -182,8 +188,7 @@ In [src/lib/covers.ts](../src/lib/covers.ts) and the SQL constraint `cover_from_
 |---|---|
 | Spam or offensive entries | Length limits and cover allowlist in the database; delete via dashboard; moderation later. |
 | Cover art copyright (EU has no broad fair use) | Cover rules above. Not legal advice. |
-| Open Library slow or down (5–10 s searches, 3–8 s covers) | Retry + "slow" note in search; covers preloaded; typeset cover until the image arrives; Google Books as a parallel source (phase D). |
-| Google Books quota or key misuse | Restrict the key to the Books API and our domains; Open Library keeps working if Google fails. |
+| Open Library slow or down (5–10 s searches, 3–8 s covers) | Retry + "slow" note in search; covers preloaded; typeset cover until the image arrives; Google Books was tried and dropped (phase D). |
 | Supabase free project pauses after a week without traffic | Visiting the site keeps it active; otherwise resume it in the dashboard. |
 | Sampled cover colors look garish | Nudge toward the cloth palette; fall back to palette colors. |
 

@@ -23,9 +23,9 @@ Commands: `npm run dev`, `npm run build` (tsc + vite), `npm run lint` (oxlint).
 
 ## Conventions
 
-- Design direction: "Index" layout, recolored warm: neutral off-white paper, cloth-binding spine palette (`BINDINGS` in `lib/appearance.ts`), walnut shelf, oxblood accent, soft lamp glow. Laura rejected grey (dull), beige (too nude) and dark backgrounds. Colors, fonts and radii live in `src/theme/tokens.css` and are mapped to utilities (`bg-canvas`, `text-ink`, `border-rule`, `font-ui`…) in `src/styles.css`. Spine lettering faces live in `lib/spine.ts`.
+- Design direction: "Index" layout, recolored warm: warm paper background `#fbf8f0` (= `#f0e6cc` at 30% over white, Laura's choice), cloth-binding spine palette (`BINDINGS` in `lib/appearance.ts`), walnut shelf, burnt orange accent (`#dd6a2b`), dark walnut ink (`#3d2616`), soft lamp glow. Laura rejected grey (dull), beige (too nude) and dark backgrounds. Colors, fonts and radii live in `src/theme/tokens.css` and are mapped to utilities (`bg-canvas`, `text-ink`, `border-rule`, `font-ui`…) in `src/styles.css`. Spine lettering faces live in `lib/spine.ts`.
 - Store content, derive appearance: `BookRecord` holds content only; visuals come from `lib/appearance.ts` (hash of Open Library key) and cover sampling. Don't add visual columns to Supabase.
-- Cover rules (see `src/lib/covers.ts` and the SQL constraint; keep them in sync): hotlink covers from the source and store only the URL; credit every shown cover with "Cover via {source} ↗" linking to the book's page there; accept only Open Library and Google Books; non-commercial, no ads or affiliate links; unwanted entries are removed in the Supabase dashboard.
+- Cover rules (see `src/lib/covers.ts` and the SQL constraint; keep them in sync): hotlink covers from the source and store only the URL; credit every shown cover with "Cover via {source} ↗" linking to the book's page there; accept only Open Library (Google Books is still allowed by the allowlist and database but no longer used); non-commercial, no ads or affiliate links; unwanted entries are removed in the Supabase dashboard.
 - Code style: single quotes, no semicolons, 120 columns (ported files were run through Prettier with those settings).
 
 ## Scope (agreed 2026-10-24)
@@ -42,7 +42,7 @@ Decisions:
 - Starter books come from a list Laura provides (titles + why she recommends each); covers from Open Library or Google Books.
 - Visitors pick books via search (Open Library + Google Books) and choose a cover, or a generated one; no image upload. Shared storage: Supabase (public read/insert, no update/delete).
 
-Current round (see docs/IMPLEMENTATION_PLAN.md §3): Supabase, mobile optimization, spine colors from covers, Google Books API.
+Current round (see docs/IMPLEMENTATION_PLAN.md §3): Supabase, mobile optimization, spine colors from covers. Google Books was tried and dropped (noisy results, small uncolourable covers, unreliable API); search is Open Library only.
 
 Out of scope for now: AI natural-language search, Goodreads import, Amazon affiliate program (decided 2026-10-24).
 

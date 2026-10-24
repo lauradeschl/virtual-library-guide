@@ -1,6 +1,7 @@
 import csvText from '../../data/favorite_books_2026.csv?raw'
 import { bookGenres } from './genres'
-import { starterCovers } from './starterCovers'
+import { starterCovers, starterPalettes } from './starterCovers'
+import { seedCoverPalettes } from '../lib/coverPalette'
 import { parseCsv } from '../lib/csv'
 import type { Genre, SeedBook } from '../types/book'
 
@@ -23,7 +24,20 @@ const toGenre = (value: string, title: string): Genre => {
   return genre ?? 'Fiction'
 }
 
-export const starterBooks: SeedBook[] = parseCsv(csvText)
+seedCoverPalettes(starterPalettes)
+
+// A stray quote in the CSV makes a description swallow the following rows,
+// which then show up as one long text with line breaks. Flag it loudly.
+const rows = parseCsv(csvText)
+for (const row of rows) {
+  if (Object.values(row).some((value) => value.includes('\n'))) {
+    console.warn(
+      `favorite_books_2026.csv: the row "${row['Title']}" spans several lines. Check its quotes: a quote inside a text must be doubled (""), and the text must end with exactly one ".`,
+    )
+  }
+}
+
+export const starterBooks: SeedBook[] = rows
   .filter((row) => row['Title'])
   .map((row) => {
     const title = row['Title']
@@ -35,7 +49,7 @@ export const starterBooks: SeedBook[] = parseCsv(csvText)
       genre: toGenre(row['Genre'] ?? '', title),
       year: Number(row['Year']) || 0,
       cover: cover?.cover ?? '',
-      coverSource: cover ? 'openlibrary' : '',
+      coverSource: cover?.cover ? 'openlibrary' : '',
       coverPageUrl: cover?.pageUrl ?? '',
       openLibraryKey: cover?.key ?? '',
       pages: cover?.pages ?? 0,
@@ -43,5 +57,6 @@ export const starterBooks: SeedBook[] = parseCsv(csvText)
       recommender: row['Recommender'] ?? '',
       note: row['Why I recommend it'] ?? '',
       addedAt: '',
+      look: cover ? { ...(cover.font && { font: cover.font }), ...cover.look } : undefined,
     }
   })

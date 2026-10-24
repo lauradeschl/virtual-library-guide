@@ -1,10 +1,19 @@
 import type { CoverSource } from '../lib/covers'
 
-export type Genre = 'Fiction' | 'Nonfiction' | 'Sci-Fi' | 'Mystery & Thriller' | 'Fantasy' | 'Romance'
+export type Genre = 'Fiction' | 'Self-help' | 'Business' | 'Sci-Fi' | 'Mystery & Thriller' | 'Fantasy' | 'Romance'
 
 export type GenreFilter = Genre | 'All'
 
 export type SpineType = 'serif' | 'sans' | 'condensed' | 'mono'
+
+// Lettering that mimics a specific cover's typeface (set by hand for starter
+// books in starterCovers.ts). Overrides the generic SpineType title style.
+export type SpineFont = {
+  family: string // CSS font-family, loaded in styles.css
+  weight: number
+  transform?: 'uppercase' | 'lowercase'
+  tracking?: string // letter-spacing
+}
 
 // What a book *is*. Stored for starter books in code and for visitor
 // books in Supabase. Contains no visual decisions, so the design can
@@ -35,6 +44,7 @@ export type BookAppearance = {
   band?: string // accent color
   ink: string // lettering color
   type: SpineType // lettering style
+  font?: SpineFont // cover-matched lettering, overrides `type` for the title
   width: number // spine width, px
   height: number // spine height, px
   lean: number // degrees

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { BookSpine } from './BookSpine'
 import { useSpineScale } from '../hooks/useSpineScale'
@@ -45,14 +45,32 @@ export function Bookshelf({
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
+  // Whether the row is wider than the screen; phones then get a fade at the
+  // right edge as a hint that it scrolls.
+  const [overflowing, setOverflowing] = useState(false)
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const check = () => setOverflowing(el.scrollWidth > el.clientWidth + 1)
+    const observer = new ResizeObserver(check)
+    observer.observe(el)
+    if (el.firstElementChild) observer.observe(el.firstElementChild)
+    return () => observer.disconnect()
+  }, [books.length])
+
   const caption = `${books.length} of ${total} books`
   const scale = useSpineScale()
 
   return (
     <section aria-label="Bookshelf" className="relative w-full">
-      <div ref={scrollRef} className="no-scrollbar overflow-x-auto overflow-y-hidden">
+      <div
+        ref={scrollRef}
+        className={`no-scrollbar overflow-x-auto overflow-y-hidden ${
+          overflowing ? 'max-sm:[mask-image:linear-gradient(to_right,black_85%,transparent)]' : ''
+        }`}
+      >
         {books.length > 0 ? (
-          <ul className="flex min-w-max items-end gap-[2px] px-5 pt-20 sm:gap-[3px] sm:px-8 sm:pt-24 lg:px-12">
+          <ul className="flex min-w-max items-end gap-[2px] px-5 pt-8 sm:gap-[3px] sm:px-8 sm:pt-24 lg:px-12">
             <AnimatePresence mode="popLayout" initial={false}>
               {books.map((book) => (
                 <BookSpine
@@ -88,9 +106,10 @@ export function Bookshelf({
       <div className="flex items-center justify-between px-5 pb-5 pt-4 text-xs text-muted sm:px-8 lg:px-12">
         <span className="tabular-nums">
           {caption}
-          {notice && <span className="ml-3 text-accent">{notice}</span>}
+          {notice && <span className="ml-3 text-ink">{notice}</span>}
         </span>
         <span className="hidden sm:inline">Scroll to browse · Click a spine to pull it out</span>
+        <span className="sm:hidden">{overflowing ? 'Swipe to browse · ' : ''}Tap a spine</span>
       </div>
     </section>
   )

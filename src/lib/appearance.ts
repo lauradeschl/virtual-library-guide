@@ -1,3 +1,4 @@
+import type { CoverPalette } from './coverPalette'
 import type { Book, BookAppearance, BookRecord, SeedBook } from '../types/book'
 
 // Deterministic 32-bit hash (FNV-1a), so a book looks the same on every visit.
@@ -68,4 +69,11 @@ export function deriveAppearance(book: BookRecord): BookAppearance {
 export function toBook(record: BookRecord | SeedBook): Book {
   const { look, ...rest } = record as SeedBook
   return { ...rest, ...deriveAppearance(rest), ...look }
+}
+
+// Spine colors from the book's cover, when sampled. Keeps whether the book
+// has head/foot bands, so the shelf stays varied.
+export function withCoverPalette(book: Book, palette: CoverPalette | undefined): Book {
+  if (!palette) return book
+  return { ...book, spine: palette.spine, ink: palette.ink, band: book.band ? palette.band : undefined }
 }

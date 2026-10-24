@@ -1,8 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { Book, GenreFilter, SpineType } from '../types/book'
-
-export const spineShadow =
-  'inset 2px 0 0 rgba(255,255,255,0.14), inset -3px 0 0 rgba(0,0,0,0.16), inset 0 -1px 0 rgba(0,0,0,0.2)'
+import type { Book, GenreFilter, SpineFont, SpineType } from '../types/book'
 
 export const spineTypography: Record<SpineType, { title: CSSProperties; author: CSSProperties }> = {
   serif: {
@@ -33,6 +30,26 @@ export const spineTypography: Record<SpineType, { title: CSSProperties; author: 
   },
 }
 
+// Title and author styles for a spine or typeset cover. A cover-matched font
+// replaces the generic style; the author keeps its weight but follows the font.
+export function spineStyles(type: SpineType, font?: SpineFont): { title: CSSProperties; author: CSSProperties } {
+  const base = spineTypography[type]
+  if (!font) return base
+  return {
+    title: {
+      fontFamily: font.family,
+      fontWeight: font.weight,
+      textTransform: font.transform ?? 'none',
+      letterSpacing: font.tracking ?? '0.01em',
+    },
+    author: {
+      fontFamily: font.family,
+      fontWeight: 400,
+      textTransform: font.transform === 'lowercase' ? 'none' : font.transform,
+    },
+  }
+}
+
 export function authorSurname(author: string): string {
   const first = author.split('&')[0].trim()
   const parts = first.split(' ')
@@ -42,7 +59,8 @@ export function authorSurname(author: string): string {
 export const genreCodes: Record<GenreFilter, string> = {
   All: '000',
   Fiction: 'FIC',
-  Nonfiction: 'NF',
+  'Self-help': 'SH',
+  Business: 'BUS',
   'Sci-Fi': 'SF',
   'Mystery & Thriller': 'MYS',
   Fantasy: 'FAN',

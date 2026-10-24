@@ -68,11 +68,11 @@ export const BookSpine = forwardRef<HTMLLIElement, BookSpineProps>(function Book
         ref={buttonRef}
         type="button"
         onClick={() => onSelect(book.id)}
-        onMouseEnter={() => {
-          setHovered(true)
-          preloadCover(book.cover)
+        onPointerEnter={(e) => {
+          if (e.pointerType === 'mouse') setHovered(true)
+          preloadCover(book.cover, { priority: true })
         }}
-        onMouseLeave={() => setHovered(false)}
+        onPointerLeave={() => setHovered(false)}
         aria-label={`${book.title} by ${book.author}`}
         aria-pressed={selected}
         animate={{ y: lift }}
@@ -87,7 +87,7 @@ export const BookSpine = forwardRef<HTMLLIElement, BookSpineProps>(function Book
           width={Math.round(book.width * scale)}
           height={Math.round(book.height * scale)}
           type={book.type}
-          band={book.band}
+          font={book.font}
         />
       </motion.button>
     </motion.li>
