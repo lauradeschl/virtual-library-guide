@@ -21,6 +21,8 @@ A personal virtual library: a 3D, infinitely scrolling bookshelf of real books, 
 
 Commands: `npm run dev`, `npm run build` (tsc + vite), `npm run lint` (oxlint).
 
+Live: https://digital-bookshelf-ten.vercel.app (Vercel project `digital-bookshelf`, team `unshippable`, linked via `.vercel/`). Deploy with `npx vercel@latest deploy --prod`. Env vars `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are set in Vercel for production, preview and development. The project isn't connected to GitHub yet (needs a GitHub login connection on Laura's Vercel account), so pushes don't deploy automatically.
+
 ## Conventions
 
 - Design direction: "Index" layout, recolored warm: warm paper background `#fbf8f0` (= `#f0e6cc` at 30% over white, Laura's choice), cloth-binding spine palette (`BINDINGS` in `lib/appearance.ts`), walnut shelf, burnt orange accent (`#dd6a2b`), dark walnut ink (`#3d2616`), soft lamp glow. Laura rejected grey (dull), beige (too nude) and dark backgrounds. Colors, fonts and radii live in `src/theme/tokens.css` and are mapped to utilities (`bg-canvas`, `text-ink`, `border-rule`, `font-ui`…) in `src/styles.css`. Spine lettering faces live in `lib/spine.ts`.

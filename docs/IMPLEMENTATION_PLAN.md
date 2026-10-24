@@ -168,7 +168,7 @@ In [src/lib/covers.ts](../src/lib/covers.ts) and the SQL constraint `cover_from_
 |---|---|
 | Cover picker | Choose between editions' covers, or a designed cover. |
 | 3D shelf + pull-out animation | From the build guide: curved perspective, hover pull, book slides out to face you. |
-| Publish | Vercel/Netlify, `og:` tags, favicon, test the public link. |
+| Publish | ✅ Live at https://digital-bookshelf-ten.vercel.app (2026-10-24). Still open: connect the Vercel project to GitHub for automatic deploys, link-preview image (`og:image`), custom domain. |
 | Moderation | `approved` column or captcha if spam appears. |
 | Amazon affiliate | Explicitly out for this round. |
 
